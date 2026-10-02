@@ -1,0 +1,73 @@
+# Smart Gateway - panel plus an optional local relay node.
+#
+# The panel is the only service an operator needs to reach. Agents run wherever
+# the traffic should leave from, and pull their configuration from the panel.
+#
+# Quick start:
+#   1. cp .env.example .env
+#   2. set PANEL_ADMIN_TOKEN to a long random value
+#   3. docker compose up -d
+#   4. open the panel and register nodes, services and routes
+services:
+  panel:
+    image: ${PANEL_IMAGE:-ghcr.io/uio-o/smart-gateway:latest}
+    container_name: smart-gateway-panel
+    restart: unless-stopped
+    command: ["/usr/local/bin/smart-gateway-panel", "-addr", ":8090", "-data", "/data"]
+    environment:
+      # The token guards the control API. A panel that can be reached without
+      # it can reconfigure every agent, so it is required.
+      PANEL_ADMIN_TOKEN: ${PANEL_ADMIN_TOKEN:?set PANEL_ADMIN_TOKEN in .env}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - panel-data:/data
+    ports:
+      # Bind to loopback by default: the panel should sit behind the operator's
+      # own reverse proxy rather than being exposed directly.
+      - "${PANEL_BIND:-127.0.0.1}:${PANEL_PORT:-8090}:8090"
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/smart-gateway-panel", "-healthcheck-url", "http://127.0.0.1:8090/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # A relay node running on the same host. Remove this service when every relay
+  # lives on a separate machine.
+  #
+  # It runs in managed mode: the panel owns the port mappings, so the container
+  # only needs its identity and token.
+  relay:
+    image: ${PANEL_IMAGE:-ghcr.io/uio-o/smart-gateway:latest}
+    container_name: smart-gateway-relay
+    restart: unless-stopped
+    profiles: ["local-relay"]
+    depends_on:
+      panel:
+        condition: service_healthy
+    command:
+      - /usr/local/bin/smart-gateway-agent
+      - -panel
+      - http://panel:8090
+      - -node
+      - ${RELAY_NODE_NAME:?set RELAY_NODE_NAME in .env}
+      - -role
+      - relay
+      - -panel-token
+      - ${RELAY_AGENT_TOKEN:?set RELAY_AGENT_TOKEN in .env}
+    ports:
+      # The relay port range must match the panel's configured range.
+      - "${RELAY_PORT_START:-3001}-${RELAY_PORT_END:-3100}:${RELAY_PORT_START:-3001}-${RELAY_PORT_END:-3100}"
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+volumes:
+  panel-data:

@@ -1,0 +1,17 @@
+# Example relay node configuration.
+#
+# A relay forwards bytes to its next hop without interpreting them. In normal
+# operation the panel generates this document and the relay fetches it, so this
+# file exists for the case where you want a relay to start before the panel is
+# reachable, or to run one standalone.
+role: relay
+
+# Each entry maps a local TCP port to the next hop in the chain.
+# Ports are assigned by the panel from its configured pool so that routes stay
+# stable across restarts.
+relay_ports:
+  - port: 3001
+    target: 10.0.0.5:8084
+
+logging:
+  level: info

@@ -1,0 +1,16 @@
+# Build artifacts and local state
+/bin/
+/dist/
+*.exe
+*.out
+*.test
+
+# Local configuration may contain operator specific endpoints
+/agent.yaml
+/local/
+*.local.yaml
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+*.swp

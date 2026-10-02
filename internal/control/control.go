@@ -179,8 +179,10 @@ func (c *Client) Run(ctx context.Context, apply ApplyFunc, state StateFunc) erro
 		mu         sync.Mutex
 		applied    string
 		lastErr    string
+		lastApply  time.Time
 		consecFail int
 	)
+	_ = lastApply
 
 	syncOnce := func() {
 		fetchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)

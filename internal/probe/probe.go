@@ -178,7 +178,7 @@ func (p *Prober) Run(ctx context.Context, getCfg func() *config.Config, tracker 
 	}
 }
 
-// Once measures a single route immediately, used by the panel test-now path.
+// Once measures a single route immediately, used by the panel "test now" path.
 func (p *Prober) Once(ctx context.Context, cfg *config.Config, routeName string) (Result, bool) {
 	for _, r := range cfg.Routes {
 		if r.Name != routeName {

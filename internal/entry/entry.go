@@ -471,6 +471,8 @@ func (s *Server) writeAudit(rec auditRecord) {
 	s.audit.Write(rec)
 }
 
+// Limiter is a simple fixed-window per-client rate limiter.
+
 // RunProbes starts background probing for the entry node.
 func (s *Server) RunProbes(ctx context.Context, p interface {
 	Run(context.Context, func() *config.Config, *route.Tracker)

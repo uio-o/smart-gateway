@@ -242,6 +242,18 @@ func (r *managedRuntime) apply(cfg *config.Config) error {
 	return nil
 }
 
+// state reports runtime health for heartbeats.
+func (r *managedRuntime) state() (int64, bool, string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var conns int64
+	if r.entry != nil {
+		conns = r.entry.ActiveConnections()
+	}
+	return conns, r.lastErr == "" && r.role != "", r.lastErr
+}
+
 // restartProbeLocked stops any running prober and starts a new one when the
 // configuration enables it.
 func (r *managedRuntime) restartProbeLocked(cfg *config.Config, srv *entry.Server) {
@@ -256,18 +268,6 @@ func (r *managedRuntime) restartProbeLocked(cfg *config.Config, srv *entry.Serve
 	r.cancelProbe = cancel
 	p := probe.New(cfg.Probe.Timeout())
 	go p.Run(pctx, srv.Config, srv.Tracker())
-}
-
-// state reports runtime health for heartbeats.
-func (r *managedRuntime) state() (int64, bool, string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	var conns int64
-	if r.entry != nil {
-		conns = r.entry.ActiveConnections()
-	}
-	return conns, r.lastErr == "" && r.role != "", r.lastErr
 }
 
 // close releases the running server and any probe goroutine.

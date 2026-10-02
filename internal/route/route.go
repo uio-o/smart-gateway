@@ -23,25 +23,25 @@ type Sample struct {
 
 // Stats summarises a route over a sliding window.
 type Stats struct {
-	RouteName    string    `json:"route_name"`
-	Samples      int       `json:"samples"`
-	SuccessRate  float64   `json:"success_rate"`
-	P50MS        float64   `json:"p50_ms"`
-	P95MS        float64   `json:"p95_ms"`
-	LastError    string    `json:"last_error,omitempty"`
-	LastOKAt     time.Time `json:"last_ok_at,omitempty"`
-	LastFailAt   time.Time `json:"last_fail_at,omitempty"`
-	ConsecFails  int       `json:"consecutive_failures"`
-	Healthy      bool      `json:"healthy"`
-	Score        float64   `json:"score"`
+	RouteName   string    `json:"route_name"`
+	Samples     int       `json:"samples"`
+	SuccessRate float64   `json:"success_rate"`
+	P50MS       float64   `json:"p50_ms"`
+	P95MS       float64   `json:"p95_ms"`
+	LastError   string    `json:"last_error,omitempty"`
+	LastOKAt    time.Time `json:"last_ok_at,omitempty"`
+	LastFailAt  time.Time `json:"last_fail_at,omitempty"`
+	ConsecFails int       `json:"consecutive_failures"`
+	Healthy     bool      `json:"healthy"`
+	Score       float64   `json:"score"`
 }
 
 // Tracker records per-route observations.
 type Tracker struct {
-	mu       sync.RWMutex
-	window   int
-	samples  map[string][]Sample
-	state    map[string]*routeState
+	mu      sync.RWMutex
+	window  int
+	samples map[string][]Sample
+	state   map[string]*routeState
 	// thresholds
 	failThreshold int
 	minSuccess    float64

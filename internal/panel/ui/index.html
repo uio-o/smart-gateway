@@ -1,3 +1,870 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Gateway 面板</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #171a23;
+    --panel-2: #1e222d;
+    --line: #2a2f3d;
+    --fg: #e6e8ee;
+    --dim: #8b93a7;
+    --accent: #4f8cff;
+    --ok: #35c07a;
+    --warn: #e0a33a;
+    --bad: #e05c5c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 14px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 20px; border-bottom: 1px solid var(--line);
+    background: var(--panel); position: sticky; top: 0; z-index: 10;
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .3px; }
+  header .grow { flex: 1; }
+  .pill {
+    font-size: 12px; padding: 2px 8px; border-radius: 99px;
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--dim);
+  }
+  .pill.ok { color: var(--ok); border-color: #23543c; }
+  .pill.bad { color: var(--bad); border-color: #5a2a2a; }
+  main { padding: 20px; max-width: 1240px; margin: 0 auto; }
+  nav { display: flex; gap: 4px; margin-bottom: 18px; flex-wrap: wrap; }
+  nav button {
+    background: transparent; color: var(--dim); border: 1px solid transparent;
+    padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 13px;
+  }
+  nav button:hover { color: var(--fg); background: var(--panel); }
+  nav button.active { color: var(--fg); background: var(--panel-2); border-color: var(--line); }
+  section { display: none; }
+  section.active { display: block; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 16px; margin-bottom: 16px;
+  }
+  .card h2 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+  .card .hint { color: var(--dim); font-size: 12px; margin-bottom: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { color: var(--dim); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; }
+  tr:last-child td { border-bottom: none; }
+  code, .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  input, select, textarea {
+    background: var(--bg); color: var(--fg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 7px 9px; font: inherit; font-size: 13px; width: 100%;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  label { display: block; font-size: 12px; color: var(--dim); margin-bottom: 5px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  button.btn {
+    background: var(--accent); color: #fff; border: none; border-radius: 6px;
+    padding: 8px 14px; cursor: pointer; font-size: 13px; font-weight: 500; white-space: nowrap;
+  }
+  button.btn:hover { filter: brightness(1.1); }
+  button.btn.ghost { background: transparent; color: var(--dim); border: 1px solid var(--line); }
+  button.btn.ghost:hover { color: var(--fg); }
+  button.btn.danger { background: transparent; color: var(--bad); border: 1px solid #5a2a2a; }
+  button.btn.tiny { padding: 4px 9px; font-size: 12px; }
+  .muted { color: var(--dim); }
+  .stat { display: flex; flex-direction: column; gap: 3px; }
+  .stat .v { font-size: 22px; font-weight: 600; }
+  .stat .k { font-size: 12px; color: var(--dim); }
+  #login {
+    max-width: 380px; margin: 14vh auto; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 12px; padding: 24px;
+  }
+  #login h1 { font-size: 16px; margin: 0 0 6px; }
+  #toast {
+    position: fixed; bottom: 20px; right: 20px; display: flex;
+    flex-direction: column; gap: 8px; z-index: 99; max-width: 420px;
+  }
+  .toast {
+    background: var(--panel-2); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    border-radius: 8px; padding: 10px 14px; font-size: 13px; animation: in .18s ease;
+  }
+  .toast.err { border-left-color: var(--bad); }
+  .toast.ok { border-left-color: var(--ok); }
+  @keyframes in { from { opacity: 0; transform: translateY(6px); } }
+  .tag { font-size: 11px; padding: 2px 7px; border-radius: 5px; background: var(--panel-2); border: 1px solid var(--line); }
+  .tag.ok { color: var(--ok); } .tag.bad { color: var(--bad); } .tag.warn { color: var(--warn); }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 820px) { .split { grid-template-columns: 1fr; } }
+  pre.out {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px; overflow: auto; max-height: 420px; font-size: 12px; margin: 0;
+  }
+  .hseat { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .hseat h2 { margin: 0; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div id="login" hidden>
+  <h1>Smart Gateway</h1>
+  <div class="hint muted" style="margin-bottom:18px">输入面板令牌以继续</div>
+  <label for="tok">面板令牌</label>
+  <input id="tok" type="password" placeholder="sg_admin_..." autocomplete="current-password">
+  <div style="height:12px"></div>
+  <button class="btn" style="width:100%" onclick="login()">登录</button>
+  <div id="loginErr" class="muted" style="margin-top:10px;font-size:12px;color:var(--bad)"></div>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <h1>Smart Gateway</h1>
+    <span class="pill" id="verPill">版本 -</span>
+    <span class="pill" id="healthPill">检测中…</span>
+    <span class="grow"></span>
+    <button class="btn ghost tiny" onclick="refreshAll()">刷新</button>
+    <button class="btn ghost tiny" onclick="logout()">退出</button>
+  </header>
+
+  <main>
+    <nav>
+      <button class="active" data-tab="overview">概览</button>
+      <button data-tab="nodes">节点</button>
+      <button data-tab="services">服务</button>
+      <button data-tab="routes">路由</button>
+      <button data-tab="tokens">接入令牌</button>
+      <button data-tab="settings">调度设置</button>
+      <button data-tab="preview">配置预览</button>
+    </nav>
+
+    <section id="tab-overview" class="active">
+      <div class="grid" style="margin-bottom:16px">
+        <div class="card stat"><span class="v" id="sNodes">-</span><span class="k">节点</span></div>
+        <div class="card stat"><span class="v" id="sOnline">-</span><span class="k">在线节点</span></div>
+        <div class="card stat"><span class="v" id="sServices">-</span><span class="k">服务</span></div>
+        <div class="card stat"><span class="v" id="sRoutes">-</span><span class="k">路由</span></div>
+      </div>
+      <div class="card">
+        <h2>节点状态</h2>
+        <div class="hint">心跳超过 90 秒未更新即视为离线。配置哈希变化表示节点已应用新配置。</div>
+        <table><thead><tr>
+          <th>名称</th><th>角色</th><th>地址</th><th>状态</th><th>配置哈希</th><th>连接</th><th>最后心跳</th>
+        </tr></thead><tbody id="ovNodes"></tbody></table>
+      </div>
+    </section>
+
+    <section id="tab-nodes">
+      <div class="card">
+        <div class="hseat"><h2>节点</h2></div>
+        <div class="hint">
+          入口节点：接收客户端流量并选路，地址填公网 <code>host:port</code>（仅用于展示与排障）。
+          中转节点：在节点间转发字节，地址必须是其他节点能直连的 <code>IP:端口</code>，不需要域名。
+        </div>
+        <table><thead><tr>
+          <th>名称</th><th>角色</th><th>地址</th><th>启用</th><th>备注</th><th></th>
+        </tr></thead><tbody id="nodeRows"></tbody></table>
+      </div>
+      <div class="card">
+        <h2 id="nodeFormTitle">新增节点</h2>
+        <div class="grid" style="margin-top:12px">
+          <div><label>名称</label><input id="nName" placeholder="tokyo"></div>
+          <div><label>角色</label><select id="nRole">
+            <option value="relay">relay（中转）</option>
+            <option value="entry">entry（入口）</option>
+          </select></div>
+          <div><label>地址 host:port</label><input id="nAddr" placeholder="1.2.3.4:3001"></div>
+          <div><label>备注</label><input id="nRemark" placeholder="可选"></div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <label style="margin:0"><input type="checkbox" id="nEnabled" checked style="width:auto"> 启用</label>
+          <span class="grow" style="flex:1"></span>
+          <button class="btn ghost" onclick="resetNodeForm()">清空</button>
+          <button class="btn" onclick="saveNode()">保存节点</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-services">
+      <div class="card">
+        <div class="hseat"><h2>服务</h2></div>
+        <div class="hint">服务描述一个源站。入口路径前缀由这里决定，不写死在代码里；路径白名单留空表示不限制（可交给前端反向代理处理）。</div>
+        <table><thead><tr>
+          <th>名称</th><th>源站</th><th>入口前缀</th><th>路径白名单</th><th>SSE</th><th>WS</th><th>启用</th><th></th>
+        </tr></thead><tbody id="svcRows"></tbody></table>
+      </div>
+      <div class="card">
+        <h2 id="svcFormTitle">新增服务</h2>
+        <div class="grid" style="margin-top:12px">
+          <div><label>名称</label><input id="sName" placeholder="aether"></div>
+          <div><label>源站 URL</label><input id="sUp" placeholder="http://209.50.229.83:8084"></div>
+          <div><label>入口路径前缀</label><input id="sPrefix" placeholder="/v1"></div>
+          <div><label>Host 覆盖（可选）</label><input id="sHost" placeholder="api.example.com"></div>
+          <div><label>健康检查路径</label><input id="sHealth" placeholder="/healthz"></div>
+          <div><label>请求体上限 (MiB)</label><input id="sBody" type="number" value="100" min="0"></div>
+          <div><label>空闲读超时 (秒)</label><input id="sRT" type="number" value="3600" min="0"></div>
+          <div><label>允许方法（逗号分隔）</label><input id="sMethods" placeholder="GET,POST"></div>
+        </div>
+        <div style="margin-top:12px">
+          <label>路径白名单（每行一个，留空不限制）</label>
+          <textarea id="sAllow" rows="4" placeholder="/v1/messages&#10;/v1/chat/completions"></textarea>
+        </div>
+        <div class="row" style="margin-top:14px;flex-wrap:wrap;gap:16px">
+          <label style="margin:0"><input type="checkbox" id="sTrim" style="width:auto"> 转发时去掉前缀</label>
+          <label style="margin:0"><input type="checkbox" id="sSSE" checked style="width:auto"> 支持 SSE</label>
+          <label style="margin:0"><input type="checkbox" id="sWS" checked style="width:auto"> 支持 WebSocket</label>
+          <label style="margin:0"><input type="checkbox" id="sEnabled" checked style="width:auto"> 启用</label>
+          <span style="flex:1"></span>
+          <button class="btn ghost" onclick="resetSvcForm()">清空</button>
+          <button class="btn" onclick="saveService()">保存服务</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-routes">
+      <div class="card">
+        <div class="hseat"><h2>路由</h2></div>
+        <div class="hint">一个路由 = 一条从入口到源站的完整路径。跳点留空表示直连源站（用于对比线路质量）。端口由面板自动分配，也可手填。</div>
+        <table><thead><tr>
+          <th>名称</th><th>服务</th><th>跳点链</th><th>端口</th><th>权重</th><th>启用</th><th></th>
+        </tr></thead><tbody id="rtRows"></tbody></table>
+      </div>
+      <div class="card">
+        <h2 id="rtFormTitle">新增路由</h2>
+        <div class="grid" style="margin-top:12px">
+          <div><label>名称</label><input id="rName" placeholder="via-tokyo"></div>
+          <div><label>服务</label><select id="rService"></select></div>
+          <div><label>跳点链（逗号分隔，可留空）</label><input id="rHops" placeholder="tokyo"></div>
+          <div><label>端口（留空自动分配）</label><input id="rPort" placeholder="自动"></div>
+          <div><label>权重</label><input id="rWeight" type="number" value="100" min="0"></div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <label style="margin:0"><input type="checkbox" id="rEnabled" checked style="width:auto"> 启用</label>
+          <span style="flex:1"></span>
+          <button class="btn ghost" onclick="resetRtForm()">清空</button>
+          <button class="btn" onclick="saveRoute()">保存路由</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-tokens">
+      <div class="card">
+        <div class="hseat"><h2>接入令牌</h2></div>
+        <div class="hint">每个节点一个令牌，Agent 用它拉取配置并上报心跳。令牌只在创建时显示一次。</div>
+        <div class="row" style="margin-bottom:14px">
+          <select id="tkNode" style="max-width:260px"></select>
+          <button class="btn" onclick="createToken()">生成令牌</button>
+        </div>
+        <table><thead><tr>
+          <th>节点</th><th>令牌</th><th>状态</th><th>创建时间</th><th></th>
+        </tr></thead><tbody id="tkRows"></tbody></table>
+      </div>
+      <div class="card">
+        <h2>安装命令</h2>
+        <div class="hint">在节点机器上以 root 执行。中转节点不需要域名和证书。</div>
+        <pre class="out" id="installCmd">选择上方节点并生成令牌后显示</pre>
+      </div>
+    </section>
+
+    <section id="tab-settings">
+      <div class="card">
+        <h2>调度策略</h2>
+        <div class="hint">决定同一个服务有多条路由时如何选择线路。健康度始终优先于配置顺序：坏的主线路不会遮蔽好的备用线路。</div>
+        <div class="grid" style="margin-top:12px">
+          <div><label>模式</label><select id="stMode">
+            <option value="primary_backup">主备（primary_backup）</option>
+            <option value="static">固定（static）</option>
+            <option value="weighted">加权（weighted）</option>
+            <option value="best">自动择优（best）</option>
+          </select></div>
+          <div><label>主线路</label><select id="stPrimary"></select></div>
+          <div><label>备用线路</label><select id="stBackup"></select></div>
+          <div><label>固定线路（static 模式）</label><select id="stStatic"></select></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>会话黏性</h2>
+        <div class="hint">同一会话首次选中的线路会被固定，只有累计失败超过阈值才切换。这样长会话不会在两条线路之间来回跳。</div>
+        <div class="grid" style="margin-top:12px">
+          <div><label>启用</label><select id="stSticky"><option value="1">开启</option><option value="0">关闭</option></select></div>
+          <div><label>保持时长（分钟）</label><input id="stHold" type="number" min="1" value="120"></div>
+          <div><label>失败阈值</label><input id="stFail" type="number" min="1" value="3"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>主动探测</h2>
+        <div class="hint">定期测量每条线路的延迟与成功率，作为择优依据。</div>
+        <div class="grid" style="margin-top:12px">
+          <div><label>启用</label><select id="stProbe"><option value="1">开启</option><option value="0">关闭</option></select></div>
+          <div><label>间隔（秒）</label><input id="stProbeI" type="number" min="5" value="30"></div>
+          <div><label>超时（秒）</label><input id="stProbeT" type="number" min="1" value="10"></div>
+          <div><label>样本数</label><input id="stProbeS" type="number" min="1" value="20"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>限流与日志</h2>
+        <div class="grid" style="margin-top:12px">
+          <div><label>最大并发</label><input id="stConc" type="number" min="0" value="512"></div>
+          <div><label>每分钟请求上限</label><input id="stRate" type="number" min="0" value="600"></div>
+          <div><label>日志级别</label><select id="stLog">
+            <option>debug</option><option>info</option><option>warn</option><option>error</option>
+          </select></div>
+          <div><label>审计日志路径（可空）</label><input id="stAudit" placeholder="/var/log/smart-gateway/audit.jsonl"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>端口池</h2>
+        <div class="hint">面板在这个范围内自动给路由分配节点间转发端口。</div>
+        <div class="grid" style="margin-top:12px">
+          <div><label>起始端口</label><input id="stPStart" type="number" value="3001"></div>
+          <div><label>结束端口</label><input id="stPEnd" type="number" value="3100"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>入口监听地址</h2>
+        <div class="hint">
+          留空表示由节点自己决定（Agent 的 <code>-listen</code>，默认 <code>127.0.0.1:8080</code>）。
+          入口节点应只监听本地，由你自己的反向代理终止 TLS 并转发过来。
+          只有想统一指定时才填写，例如 <code>127.0.0.1:9090</code>。
+        </div>
+        <div style="margin-top:12px;max-width:320px">
+          <label>绑定地址</label>
+          <input id="stEntryListen" placeholder="留空 = 由节点决定">
+        </div>
+      </div>
+      <button class="btn" onclick="saveSettings()">保存设置</button>
+    </section>
+
+    <section id="tab-preview">
+      <div class="card">
+        <div class="hseat"><h2>生成的 Agent 配置</h2>
+          <div class="row">
+            <select id="pvRole" style="width:auto"><option value="entry">entry</option><option value="relay">relay</option></select>
+            <select id="pvNode" style="width:auto"></select>
+            <button class="btn tiny" onclick="loadPreview()">生成</button>
+          </div>
+        </div>
+        <div class="hint">这是节点会实际拉取到的内容。中转节点只看到经过自己的路由。</div>
+        <pre class="out" id="pvOut">选择角色与节点后点击生成</pre>
+      </div>
+    </section>
+  </main>
+  <div id="toast"></div>
+</div>
+
+<script>
+'use strict';
+
+const TOKEN_KEY = 'sg_panel_token';
+let state = { nodes: [], services: [], routes: [], tokens: [], settings: null };
+let edit = { node: null, service: null, route: null };
+
+function token() { return localStorage.getItem(TOKEN_KEY) || ''; }
+
+function toast(msg, kind) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (kind ? ' ' + kind : '');
+  el.textContent = msg;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(() => el.remove(), 4200);
+}
+
+async function api(path, opts) {
+  opts = opts || {};
+  const headers = Object.assign({
+    'Authorization': 'Bearer ' + token(),
+    'Content-Type': 'application/json'
+  }, opts.headers || {});
+  const res = await fetch(path, Object.assign({}, opts, { headers }));
+  const text = await res.text();
+  let body = null;
+  if (text) { try { body = JSON.parse(text); } catch (e) { body = { raw: text }; } }
+  if (res.status === 401) {
+    localStorage.removeItem(TOKEN_KEY);
+    showLogin('令牌无效或已过期');
+    throw new Error('unauthorized');
+  }
+  if (!res.ok) {
+    const msg = (body && (body.error || body.message)) || ('HTTP ' + res.status);
+    throw new Error(msg);
+  }
+  return body;
+}
+
+function login() {
+  const v = document.getElementById('tok').value.trim();
+  if (!v) { document.getElementById('loginErr').textContent = '请输入令牌'; return; }
+  localStorage.setItem(TOKEN_KEY, v);
+  boot();
+}
+
+function logout() {
+  localStorage.removeItem(TOKEN_KEY);
+  showLogin('');
+}
+
+function showLogin(msg) {
+  document.getElementById('app').hidden = true;
+  document.getElementById('login').hidden = false;
+  document.getElementById('loginErr').textContent = msg || '';
+  document.getElementById('tok').value = '';
+}
+
+function showApp() {
+  document.getElementById('login').hidden = true;
+  document.getElementById('app').hidden = false;
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('nav button[data-tab]');
+  if (!b) return;
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('active', x === b));
+  document.querySelectorAll('section').forEach(s => s.classList.toggle('active', s.id === 'tab-' + b.dataset.tab));
+});
+
+// ---- rendering -------------------------------------------------------------
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+function ago(ts) {
+  if (!ts || ts.startsWith('0001')) return '从未';
+  const d = (Date.now() - new Date(ts).getTime()) / 1000;
+  if (d < 60) return Math.round(d) + ' 秒前';
+  if (d < 3600) return Math.round(d / 60) + ' 分钟前';
+  if (d < 86400) return Math.round(d / 3600) + ' 小时前';
+  return Math.round(d / 86400) + ' 天前';
+}
+
+function online(n) {
+  if (!n.last_seen_at || n.last_seen_at.startsWith('0001')) return false;
+  return (Date.now() - new Date(n.last_seen_at).getTime()) < 90000;
+}
+
+function nodeTag(n) {
+  if (!online(n)) return '<span class="tag bad">离线</span>';
+  if (!n.agent_ok) return '<span class="tag warn">异常</span>';
+  return '<span class="tag ok">在线</span>';
+}
+
+function optionsFor(list, selected, emptyLabel) {
+  let out = emptyLabel ? '<option value="">' + esc(emptyLabel) + '</option>' : '';
+  for (const v of list) {
+    out += '<option value="' + esc(v) + '"' + (v === selected ? ' selected' : '') + '>' + esc(v) + '</option>';
+  }
+  return out;
+}
+
+function render() {
+  const ns = state.nodes, sv = state.services, rt = state.routes;
+
+  document.getElementById('sNodes').textContent = ns.length;
+  document.getElementById('sOnline').textContent = ns.filter(online).length;
+  document.getElementById('sServices').textContent = sv.length;
+  document.getElementById('sRoutes').textContent = rt.length;
+  document.getElementById('verPill').textContent = '版本 ' + ((state.settings && state.settings.version) || '-');
+
+  document.getElementById('ovNodes').innerHTML = ns.length ? ns.map(n => `
+    <tr>
+      <td><strong>${esc(n.name)}</strong></td>
+      <td class="muted">${esc(n.role)}</td>
+      <td class="mono">${esc(n.address) || '<span class="muted">—</span>'}</td>
+      <td>${nodeTag(n)}${n.agent_error ? ' <span class="muted mono">' + esc(n.agent_error) + '</span>' : ''}</td>
+      <td class="mono muted">${esc(n.config_hash) || '—'}</td>
+      <td>${n.active_conns || 0}</td>
+      <td class="muted">${ago(n.last_seen_at)}</td>
+    </tr>`).join('') : '<tr><td colspan="7" class="muted">还没有节点，先到「节点」页添加一个中转节点。</td></tr>';
+
+  document.getElementById('nodeRows').innerHTML = ns.length ? ns.map(n => `
+    <tr>
+      <td><strong>${esc(n.name)}</strong></td>
+      <td>${esc(n.role) === 'entry' ? '<span class="tag">入口</span>' : '<span class="tag">中转</span>'}</td>
+      <td class="mono">${esc(n.address) || '—'}</td>
+      <td>${n.enabled ? '<span class="tag ok">是</span>' : '<span class="tag bad">否</span>'}</td>
+      <td class="muted">${esc(n.remark) || '—'}</td>
+      <td class="row">
+        <button class="btn ghost tiny" onclick="editNode('${esc(n.id)}')">编辑</button>
+        <button class="btn danger tiny" onclick="delNode('${esc(n.id)}', '${esc(n.name)}')">删除</button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="6" class="muted">暂无节点</td></tr>';
+
+  document.getElementById('svcRows').innerHTML = sv.length ? sv.map(s => `
+    <tr>
+      <td><strong>${esc(s.name)}</strong></td>
+      <td class="mono">${esc(s.upstream)}</td>
+      <td class="mono">${esc(s.path_prefix) || '<span class="muted">/（全部）</span>'}</td>
+      <td class="mono muted">${(s.allow_paths || []).length ? esc(s.allow_paths.join(', ')) : '不限制'}</td>
+      <td>${s.supports_sse ? '<span class="tag ok">是</span>' : '<span class="tag bad">否</span>'}</td>
+      <td>${s.supports_websocket ? '<span class="tag ok">是</span>' : '<span class="tag bad">否</span>'}</td>
+      <td>${s.enabled ? '<span class="tag ok">是</span>' : '<span class="tag bad">否</span>'}</td>
+      <td class="row">
+        <button class="btn ghost tiny" onclick="editService('${esc(s.id)}')">编辑</button>
+        <button class="btn danger tiny" onclick="delService('${esc(s.id)}', '${esc(s.name)}')">删除</button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="8" class="muted">暂无服务</td></tr>';
+
+  document.getElementById('rtRows').innerHTML = rt.length ? rt.map(r => `
+    <tr>
+      <td><strong>${esc(r.name)}</strong></td>
+      <td>${esc(r.service)}</td>
+      <td class="mono">${(r.node_names || []).length ? esc(r.node_names.join(' → ')) + ' → 源站' : '<span class="muted">直连源站</span>'}</td>
+      <td class="mono">${r.port || '—'}</td>
+      <td>${r.weight == null ? 0 : r.weight}</td>
+      <td>${r.enabled ? '<span class="tag ok">是</span>' : '<span class="tag bad">否</span>'}</td>
+      <td class="row">
+        <button class="btn ghost tiny" onclick="editRoute('${esc(r.id)}')">编辑</button>
+        <button class="btn danger tiny" onclick="delRoute('${esc(r.id)}', '${esc(r.name)}')">删除</button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="7" class="muted">暂无路由</td></tr>';
+
+  const nodeNames = ns.map(n => n.name);
+  document.getElementById('rService').innerHTML = optionsFor(sv.map(s => s.name), null, '选择服务…');
+  document.getElementById('pvNode').innerHTML = optionsFor(nodeNames, null);
+  document.getElementById('tkNode').innerHTML = optionsFor(nodeNames, null);
+
+  const routeNames = rt.map(r => r.name);
+  document.getElementById('stPrimary').innerHTML = optionsFor(routeNames, state.settings && state.settings.routing.primary, '未设置');
+  document.getElementById('stBackup').innerHTML = optionsFor(routeNames, state.settings && state.settings.routing.backup, '未设置');
+  document.getElementById('stStatic').innerHTML = optionsFor(routeNames, state.settings && state.settings.routing.static, '未设置');
+
+  document.getElementById('tkRows').innerHTML = state.tokens.length ? state.tokens.map(t => `
+    <tr>
+      <td><strong>${esc(t.node_name)}</strong></td>
+      <td class="mono">${t.fresh ? esc(t.token) : '<span class="muted">' + esc(maskToken(t.token)) + '</span> <button class="btn ghost tiny" data-reveal="' + esc(t.id) + '">显示</button>'}</td>
+      <td><span class="tag ok">有效</span></td>
+      <td class="muted">${ago(t.created_at)}</td>
+      <td><button class="btn danger tiny" onclick="delToken('${esc(t.id)}')">删除</button></td>
+    </tr>`).join('') : '<tr><td colspan="5" class="muted">暂无令牌</td></tr>';
+
+  renderInstall();
+}
+
+function maskToken(v) {
+  v = v || '';
+  return v.length <= 10 ? '••••••' : v.slice(0, 7) + '••••••' + v.slice(-4);
+}
+
+function revealToken(id) {
+  const t = state.tokens.find(x => x.id === id);
+  if (t) { t.fresh = true; render(); }
+}
+
+// The token table is rebuilt on every refresh, so a delegated listener keeps
+// the reveal button working without inline handlers that need escaping.
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-reveal]');
+  if (b) revealToken(b.dataset.reveal);
+});
+
+function installCommand(role, node, tok) {
+  const base = location.origin;
+  const cont = String.fromCharCode(92);
+  return `# ${role === 'relay' ? '中转节点（无 Docker，二进制 + systemd）' : '入口节点（跑在反向代理后面，只监听本地）'}
+curl -fsSL ${base}/install.sh | sudo bash -s -- ${cont}
+  --panel ${base} ${cont}
+  --node ${node} ${cont}
+  --role ${role} ${cont}
+  --token ${tok}${role === 'entry' ? ' ' + cont + '\n  --listen 127.0.0.1:8080' : ''}`;
+}
+
+function renderInstall() {
+  const node = document.getElementById('tkNode').value;
+  const t = state.tokens.find(x => x.node_name === node);
+  const el = document.getElementById('installCmd');
+  if (!node) { el.textContent = '先选择节点'; return; }
+  if (!t) { el.textContent = '该节点还没有令牌，点击「生成令牌」。'; return; }
+  const n = state.nodes.find(x => x.name === node) || {};
+  const tok = t.fresh ? t.token : '<令牌已隐藏，点「显示」查看>';
+  const parts = [installCommand('relay', node, tok)];
+  if (n.role === 'entry') parts.push(installCommand('entry', node, tok));
+  if (n.address) parts.push('# 节点地址：' + n.address);
+  el.textContent = parts.join('\n\n');
+}
+
 // ---- loading ---------------------------------------------------------------
 
 async function refreshAll() {
+  try {
+    const [nodes, services, routes, tokens, settings, health] = await Promise.all([
+      api('/api/nodes'), api('/api/services'), api('/api/routes'),
+      api('/api/tokens'), api('/api/settings'), fetch('/healthz').then(r => r.json()).catch(() => null)
+    ]);
+    state.nodes = nodes.nodes || nodes || [];
+    state.services = services.services || services || [];
+    state.routes = routes.routes || routes || [];
+    state.tokens = tokens.tokens || tokens || [];
+    state.settings = settings.settings || settings;
+    const hp = document.getElementById('healthPill');
+    hp.textContent = health ? '面板正常' : '面板异常';
+    hp.className = 'pill ' + (health ? 'ok' : 'bad');
+    fillSettings();
+    render();
+  } catch (e) {
+    if (e.message !== 'unauthorized') toast('加载失败：' + e.message, 'err');
+  }
+}
+
+function fillSettings() {
+  const s = state.settings; if (!s) return;
+  document.getElementById('stMode').value = s.routing.mode || 'primary_backup';
+  document.getElementById('stSticky').value = s.sticky.enabled ? '1' : '0';
+  document.getElementById('stHold').value = s.sticky.hold_minutes;
+  document.getElementById('stFail').value = s.sticky.fail_threshold;
+  document.getElementById('stProbe').value = s.probe.enabled ? '1' : '0';
+  document.getElementById('stProbeI').value = s.probe.interval_seconds;
+  document.getElementById('stProbeT').value = s.probe.timeout_seconds;
+  document.getElementById('stProbeS').value = s.probe.samples;
+  document.getElementById('stConc').value = s.limits.max_concurrent;
+  document.getElementById('stRate').value = s.limits.rate_per_minute;
+  document.getElementById('stLog').value = s.log_level || 'info';
+  document.getElementById('stAudit').value = s.audit_path || '';
+  document.getElementById('stPStart').value = s.relay_port_start;
+  document.getElementById('stPEnd').value = s.relay_port_end;
+  document.getElementById('stEntryListen').value = s.entry_listen || '';
+}
+
+async function boot() {
+  showApp();
+  await refreshAll();
+  setInterval(() => { if (!document.hidden) refreshAll(); }, 10000);
+}
+
+// ---- nodes -----------------------------------------------------------------
+
+function resetNodeForm() {
+  edit.node = null;
+  document.getElementById('nodeFormTitle').textContent = '新增节点';
+  ['nName', 'nAddr', 'nRemark'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('nRole').value = 'relay';
+  document.getElementById('nEnabled').checked = true;
+}
+
+function editNode(id) {
+  const n = state.nodes.find(x => x.id === id); if (!n) return;
+  edit.node = id;
+  document.getElementById('nodeFormTitle').textContent = '编辑节点：' + n.name;
+  document.getElementById('nName').value = n.name;
+  document.getElementById('nRole').value = n.role;
+  document.getElementById('nAddr').value = n.address || '';
+  document.getElementById('nRemark').value = n.remark || '';
+  document.getElementById('nEnabled').checked = n.enabled;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function saveNode() {
+  const body = {
+    name: document.getElementById('nName').value.trim(),
+    role: document.getElementById('nRole').value,
+    address: document.getElementById('nAddr').value.trim(),
+    remark: document.getElementById('nRemark').value.trim(),
+    enabled: document.getElementById('nEnabled').checked
+  };
+  try {
+    if (edit.node) { body.id = edit.node; await api('/api/nodes/' + edit.node, { method: 'PUT', body: JSON.stringify(body) }); }
+    else { await api('/api/nodes', { method: 'POST', body: JSON.stringify(body) }); }
+    toast('节点已保存', 'ok'); resetNodeForm(); await refreshAll();
+  } catch (e) { toast('保存失败：' + e.message, 'err'); }
+}
+
+async function delNode(id, name) {
+  if (!confirm('删除节点 ' + name + '？经过它的路由会同时失效。')) return;
+  try { await api('/api/nodes/' + id, { method: 'DELETE' }); toast('已删除', 'ok'); await refreshAll(); }
+  catch (e) { toast('删除失败：' + e.message, 'err'); }
+}
+
+// ---- services --------------------------------------------------------------
+
+function resetSvcForm() {
+  edit.service = null;
+  document.getElementById('svcFormTitle').textContent = '新增服务';
+  ['sName', 'sUp', 'sPrefix', 'sHost', 'sHealth', 'sMethods', 'sAllow'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('sBody').value = 100;
+  document.getElementById('sRT').value = 3600;
+  document.getElementById('sTrim').checked = false;
+  document.getElementById('sSSE').checked = true;
+  document.getElementById('sWS').checked = true;
+  document.getElementById('sEnabled').checked = true;
+}
+
+function editService(id) {
+  const s = state.services.find(x => x.id === id); if (!s) return;
+  edit.service = id;
+  document.getElementById('svcFormTitle').textContent = '编辑服务：' + s.name;
+  document.getElementById('sName').value = s.name;
+  document.getElementById('sUp').value = s.upstream;
+  document.getElementById('sPrefix').value = s.path_prefix || '';
+  document.getElementById('sHost').value = s.host_override || '';
+  document.getElementById('sHealth').value = s.health_path || '';
+  document.getElementById('sBody').value = s.max_body_mb;
+  document.getElementById('sRT').value = s.read_timeout_seconds;
+  document.getElementById('sMethods').value = (s.allow_methods || []).join(',');
+  document.getElementById('sAllow').value = (s.allow_paths || []).join('\n');
+  document.getElementById('sTrim').checked = !!s.strip_prefix;
+  document.getElementById('sSSE').checked = !!s.supports_sse;
+  document.getElementById('sWS').checked = !!s.supports_websocket;
+  document.getElementById('sEnabled').checked = !!s.enabled;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function splitLines(v) { return v.split(/[\n,]/).map(x => x.trim()).filter(Boolean); }
+
+async function saveService() {
+  const body = {
+    name: document.getElementById('sName').value.trim(),
+    upstream: document.getElementById('sUp').value.trim(),
+    path_prefix: document.getElementById('sPrefix').value.trim(),
+    host_override: document.getElementById('sHost').value.trim(),
+    health_path: document.getElementById('sHealth').value.trim(),
+    max_body_mb: Number(document.getElementById('sBody').value) || 0,
+    read_timeout_seconds: Number(document.getElementById('sRT').value) || 0,
+    allow_paths: splitLines(document.getElementById('sAllow').value),
+    allow_methods: splitLines(document.getElementById('sMethods').value.toUpperCase()),
+    strip_prefix: document.getElementById('sTrim').checked,
+    supports_sse: document.getElementById('sSSE').checked,
+    supports_websocket: document.getElementById('sWS').checked,
+    enabled: document.getElementById('sEnabled').checked
+  };
+  try {
+    if (edit.service) { body.id = edit.service; await api('/api/services/' + edit.service, { method: 'PUT', body: JSON.stringify(body) }); }
+    else { await api('/api/services', { method: 'POST', body: JSON.stringify(body) }); }
+    toast('服务已保存', 'ok'); resetSvcForm(); await refreshAll();
+  } catch (e) { toast('保存失败：' + e.message, 'err'); }
+}
+
+async function delService(id, name) {
+  if (!confirm('删除服务 ' + name + '？引用它的路由会同时失效。')) return;
+  try { await api('/api/services/' + id, { method: 'DELETE' }); toast('已删除', 'ok'); await refreshAll(); }
+  catch (e) { toast('删除失败：' + e.message, 'err'); }
+}
+
+// ---- routes ----------------------------------------------------------------
+
+function resetRtForm() {
+  edit.route = null;
+  document.getElementById('rtFormTitle').textContent = '新增路由';
+  ['rName', 'rHops', 'rPort'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('rWeight').value = 100;
+  document.getElementById('rEnabled').checked = true;
+}
+
+function editRoute(id) {
+  const r = state.routes.find(x => x.id === id); if (!r) return;
+  edit.route = id;
+  document.getElementById('rtFormTitle').textContent = '编辑路由：' + r.name;
+  document.getElementById('rName').value = r.name;
+  document.getElementById('rService').value = r.service;
+  document.getElementById('rHops').value = (r.node_names || []).join(',');
+  document.getElementById('rPort').value = r.port || '';
+  document.getElementById('rWeight').value = r.weight == null ? 100 : r.weight;
+  document.getElementById('rEnabled').checked = !!r.enabled;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function saveRoute() {
+  const port = document.getElementById('rPort').value.trim();
+  const body = {
+    name: document.getElementById('rName').value.trim(),
+    service: document.getElementById('rService').value,
+    node_names: splitLines(document.getElementById('rHops').value),
+    port: port ? Number(port) : 0,
+    weight: Number(document.getElementById('rWeight').value) || 0,
+    enabled: document.getElementById('rEnabled').checked
+  };
+  try {
+    if (edit.route) { body.id = edit.route; await api('/api/routes/' + edit.route, { method: 'PUT', body: JSON.stringify(body) }); }
+    else { await api('/api/routes', { method: 'POST', body: JSON.stringify(body) }); }
+    toast('路由已保存', 'ok'); resetRtForm(); await refreshAll();
+  } catch (e) { toast('保存失败：' + e.message, 'err'); }
+}
+
+async function delRoute(id, name) {
+  if (!confirm('删除路由 ' + name + '？')) return;
+  try { await api('/api/routes/' + id, { method: 'DELETE' }); toast('已删除', 'ok'); await refreshAll(); }
+  catch (e) { toast('删除失败：' + e.message, 'err'); }
+}
+
+// ---- tokens ----------------------------------------------------------------
+
+async function createToken() {
+  const node = document.getElementById('tkNode').value;
+  if (!node) { toast('先选择节点', 'err'); return; }
+  try {
+    const res = await api('/api/tokens', { method: 'POST', body: JSON.stringify({ node_name: node, label: node }) });
+    const rec = res.token ? res : (res.token_record || res);
+    rec.node_name = rec.node_name || node;
+    rec.fresh = true;
+    state.tokens.unshift(rec);
+    toast('令牌已生成', 'ok');
+    render();
+  } catch (e) { toast('生成失败：' + e.message, 'err'); }
+}
+
+async function delToken(id) {
+  if (!confirm('删除该令牌？使用它的 Agent 将无法再拉取配置。')) return;
+  try { await api('/api/tokens/' + id, { method: 'DELETE' }); toast('已删除', 'ok'); await refreshAll(); }
+  catch (e) { toast('删除失败：' + e.message, 'err'); }
+}
+
+// ---- settings --------------------------------------------------------------
+
+async function saveSettings() {
+  const base = state.settings || {};
+  const body = {
+    routing: {
+      mode: document.getElementById('stMode').value,
+      primary: document.getElementById('stPrimary').value,
+      backup: document.getElementById('stBackup').value,
+      static: document.getElementById('stStatic').value,
+      weights: (base.routing && base.routing.weights) || {}
+    },
+    sticky: {
+      enabled: document.getElementById('stSticky').value === '1',
+      hold_minutes: Number(document.getElementById('stHold').value) || 0,
+      fail_threshold: Number(document.getElementById('stFail').value) || 0
+    },
+    probe: {
+      enabled: document.getElementById('stProbe').value === '1',
+      interval_seconds: Number(document.getElementById('stProbeI').value) || 0,
+      timeout_seconds: Number(document.getElementById('stProbeT').value) || 0,
+      samples: Number(document.getElementById('stProbeS').value) || 0
+    },
+    limits: {
+      max_concurrent: Number(document.getElementById('stConc').value) || 0,
+      rate_per_minute: Number(document.getElementById('stRate').value) || 0
+    },
+    log_level: document.getElementById('stLog').value,
+    audit_path: document.getElementById('stAudit').value.trim(),
+    relay_port_start: Number(document.getElementById('stPStart').value) || 0,
+    relay_port_end: Number(document.getElementById('stPEnd').value) || 0,
+    entry_listen: document.getElementById('stEntryListen').value.trim()
+  };
+  try { await api('/api/settings', { method: 'PUT', body: JSON.stringify(body) }); toast('设置已保存', 'ok'); await refreshAll(); }
+  catch (e) { toast('保存失败：' + e.message, 'err'); }
+}
+
+// ---- preview ---------------------------------------------------------------
+
+async function loadPreview() {
+  const role = document.getElementById('pvRole').value;
+  const node = document.getElementById('pvNode').value;
+  try {
+    const res = await api('/api/render?role=' + encodeURIComponent(role) + '&node=' + encodeURIComponent(node));
+    document.getElementById('pvOut').textContent = JSON.stringify(res.config || res, null, 2);
+  } catch (e) {
+    document.getElementById('pvOut').textContent = '生成失败：' + e.message;
+  }
+}
+
+document.getElementById('pvNode').addEventListener('change', loadPreview);
+document.getElementById('pvRole').addEventListener('change', loadPreview);
+document.getElementById('tkNode').addEventListener('change', renderInstall);
+
+// ---- start -----------------------------------------------------------------
+
+if (token()) { boot(); } else { showLogin(''); }
+</script>
+</body>
+</html>

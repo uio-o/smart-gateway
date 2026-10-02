@@ -29,7 +29,7 @@ func cfgFor(upstream string, probeCfg config.Probe) *config.Config {
 func TestMeasureHealthyUpstream(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/health" {
-			t.Errorf("probe path = %s, want /health", r.URL.Path)
+			t.Errorf("probe path = %q, want /health", r.URL.Path)
 		}
 		if r.Header.Get("X-Smart-Gateway-Probe") != "1" {
 			t.Error("probe marker header missing")

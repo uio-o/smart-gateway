@@ -628,10 +628,11 @@ func (s *Store) Route(ctx context.Context, id string) (Route, error) {
 
 func scanRoute(sc scanner) (Route, error) {
 	var (
-		r                    Route
-		nodeNames            string
-		enabled              int
-		createdAt, updatedAt string
+		r         Route
+		nodeNames string
+		enabled   int
+		createdAt string
+		updatedAt string
 	)
 	if err := sc.Scan(&r.ID, &r.Name, &r.Service, &nodeNames, &r.Port, &r.Weight,
 		&enabled, &createdAt, &updatedAt); err != nil {

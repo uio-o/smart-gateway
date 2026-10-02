@@ -275,6 +275,7 @@
             <option value="primary_backup">主备（primary_backup）</option>
             <option value="static">固定（static）</option>
             <option value="weighted">加权（weighted）</option>
+            <option value="best">自动择优（best）</option>
           </select></div>
           <div><label>主线路</label><select id="stPrimary"></select></div>
           <div><label>备用线路</label><select id="stBackup"></select></div>
@@ -532,7 +533,7 @@ function render() {
   document.getElementById('tkRows').innerHTML = state.tokens.length ? state.tokens.map(t => `
     <tr>
       <td><strong>${esc(t.node_name)}</strong></td>
-      <td class="mono">${t.fresh ? esc(t.token) : '<span class="muted">' + esc(maskToken(t.token)) + '</span> <button class="btn ghost tiny" onclick="revealToken(\'' + esc(t.id) + '\')">显示</button>'}</td>
+      <td class="mono">${t.fresh ? esc(t.token) : '<span class="muted">' + esc(maskToken(t.token)) + '</span> <button class="btn ghost tiny" data-reveal="' + esc(t.id) + '">显示</button>'}</td>
       <td><span class="tag ok">有效</span></td>
       <td class="muted">${ago(t.created_at)}</td>
       <td><button class="btn danger tiny" onclick="delToken('${esc(t.id)}')">删除</button></td>
@@ -551,26 +552,36 @@ function revealToken(id) {
   if (t) { t.fresh = true; render(); }
 }
 
+// The token table is rebuilt on every refresh, so a delegated listener keeps
+// the reveal button working without inline handlers that need escaping.
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-reveal]');
+  if (b) revealToken(b.dataset.reveal);
+});
+
+function installCommand(role, node, tok) {
+  const base = location.origin;
+  const cont = String.fromCharCode(92);
+  return `# ${role === 'relay' ? '中转节点（无 Docker，二进制 + systemd）' : '入口节点（跑在反向代理后面，只监听本地）'}
+curl -fsSL ${base}/install.sh | sudo bash -s -- ${cont}
+  --panel ${base} ${cont}
+  --node ${node} ${cont}
+  --role ${role} ${cont}
+  --token ${tok}${role === 'entry' ? ' ' + cont + '\n  --listen 127.0.0.1:8080' : ''}`;
+}
+
 function renderInstall() {
   const node = document.getElementById('tkNode').value;
   const t = state.tokens.find(x => x.node_name === node);
   const el = document.getElementById('installCmd');
   if (!node) { el.textContent = '先选择节点'; return; }
   if (!t) { el.textContent = '该节点还没有令牌，点击「生成令牌」。'; return; }
-  const addr = (state.nodes.find(n => n.name === node) || {}).address || '';
+  const n = state.nodes.find(x => x.name === node) || {};
   const tok = t.fresh ? t.token : '<令牌已隐藏，点「显示」查看>';
-  el.textContent =
-`# 中转节点（无 Docker，二进制 + systemd）
-curl -fsSL ${location.origin}/install.sh | sudo bash -s -- \\
-  --panel ${location.origin} \\
-  --node ${node} \\
-  --role relay \\
-  --token ${tok}
-
-# 入口节点（跑在反向代理后面，只监听本地）
-  --role entry --listen 127.0.0.1:8080
-
-# 节点地址：${addr || '（未填写）'}`;
+  const parts = [installCommand('relay', node, tok)];
+  if (n.role === 'entry') parts.push(installCommand('entry', node, tok));
+  if (n.address) parts.push('# 节点地址：' + n.address);
+  el.textContent = parts.join('\n\n');
 }
 
 // ---- loading ---------------------------------------------------------------

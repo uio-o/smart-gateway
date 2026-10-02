@@ -338,9 +338,9 @@ type scanner interface{ Scan(dest ...any) error }
 
 func scanNode(sc scanner) (Node, error) {
 	var (
-		n                                Node
-		enabled, agentOK                 int
-		createdAt, updatedAt, seenAt     string
+		n                            Node
+		enabled, agentOK             int
+		createdAt, updatedAt, seenAt string
 	)
 	if err := sc.Scan(&n.ID, &n.Name, &n.Role, &n.Address, &n.Remark, &enabled,
 		&n.RelayPort, &createdAt, &updatedAt, &seenAt, &agentOK,
@@ -477,10 +477,10 @@ func (s *Store) ServiceByName(ctx context.Context, name string) (Service, error)
 
 func scanService(sc scanner) (Service, error) {
 	var (
-		svc                               Service
-		stripPrefix, sse, ws, enabled     int
-		allowPaths, allowMethods          string
-		createdAt, updatedAt              string
+		svc                           Service
+		stripPrefix, sse, ws, enabled int
+		allowPaths, allowMethods      string
+		createdAt, updatedAt          string
 	)
 	if err := sc.Scan(&svc.ID, &svc.Name, &svc.Upstream, &svc.HostOverride,
 		&svc.HealthPath, &svc.PathPrefix, &stripPrefix, &allowPaths, &allowMethods,
@@ -628,10 +628,10 @@ func (s *Store) Route(ctx context.Context, id string) (Route, error) {
 
 func scanRoute(sc scanner) (Route, error) {
 	var (
-		r                     Route
-		nodeNames             string
-		enabled               int
-		createdAt, updatedAt  string
+		r                    Route
+		nodeNames            string
+		enabled              int
+		createdAt, updatedAt string
 	)
 	if err := sc.Scan(&r.ID, &r.Name, &r.Service, &nodeNames, &r.Port, &r.Weight,
 		&enabled, &createdAt, &updatedAt); err != nil {

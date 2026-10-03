@@ -50,6 +50,54 @@ smart-gateway 把这些交给一个入口节点自动完成。
 **校验函数无副作用。** `config.Validate()` 不改写文档。面板和 Agent 用同一份校验逻辑，如果校验会改内容，两边就会对同一份文档产生不同理解（曾经因此让面板覆盖了每个入口节点的本机监听地址）。
 
 ## 快速开始
+## 版本与升级
+
+Agent 和面板可以**独立升级**，因为它们用各自的 tag 发布：
+
+| Tag 形态 | 构建内容 | 用途 |
+|---|---|---|
+| `agent-v0.1.1` | 只构建 Agent | 节点单独升级 Agent |
+| `panel-v0.1.1` | 只构建面板 | 单独升级控制面 |
+| `v0.1.1` | 两者都构建 | 协调发布 |
+
+带 `-rc1`、`-beta.1` 这类后缀的 tag 会标记为 **pre-release**，不会被当成当前稳定版。
+
+每次发布都是**完整产物**（不发行补丁）：二进制、校验和、容器镜像一整套。
+
+### 升级 Agent（节点上）
+
+```bash
+# 下载新版本并校验
+V=0.1.1
+curl -fsSL -o /tmp/sg-agent \
+  "https://github.com/uio-o/smart-gateway/releases/download/agent-v${V}/smart-gateway-agent-linux-amd64"
+curl -fsSL -o /tmp/sg-sums \
+  "https://github.com/uio-o/smart-gateway/releases/download/agent-v${V}/checksums-linux-amd64.txt"
+(cd /tmp && grep smart-gateway-agent-linux-amd64 sg-sums | sed 's|smart-gateway-agent-linux-amd64|sg-agent|' | sha256sum -c)
+
+# 替换并重启，配置由面板下发，不需要改本地文件
+install -m 755 /tmp/sg-agent /opt/smart-gateway/bin/smart-gateway-agent
+systemctl restart smart-gateway-agent
+```
+
+Agent 重启后会从面板重新拉取配置，期间不改变任何服务端状态。
+
+### 升级面板
+
+```bash
+docker compose pull panel
+docker compose up -d panel
+```
+
+### 容器镜像
+
+镜像发布在 GHCR，Agent 与面板是**两个独立镜像**，节点只需拉取自己要跑的那个：
+
+```
+ghcr.io/uio-o/smart-gateway/agent:0.1.1
+ghcr.io/uio-o/smart-gateway/panel:0.1.1
+```
+
 
 ### 1. 起面板
 

@@ -23,7 +23,10 @@ import (
 	"github.com/uio-o/smart-gateway/internal/store"
 )
 
-const version = "0.1.0"
+// version is the build version reported by -version. It is a variable rather
+// than a constant so the linker can stamp the release tag into the binary
+// (-ldflags "-X main.version=..."). A constant would silently ignore that.
+var version = "dev"
 
 func main() {
 	if err := run(); err != nil {

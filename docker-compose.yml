@@ -1,4 +1,4 @@
-# Smart Gateway - panel plus an optional local relay node.
+# Smart Gateway - the panel plus an optional relay node on the same host.
 #
 # The panel is the only service an operator needs to reach. Agents run wherever
 # the traffic should leave from, and pull their configuration from the panel.
@@ -8,12 +8,24 @@
 #   2. set PANEL_ADMIN_TOKEN to a long random value
 #   3. docker compose up -d
 #   4. open the panel and register nodes, services and routes
+#
+# Images come from GitHub Container Registry and are published by the release
+# workflow in .github/workflows/release.yml. Pin PANEL_VERSION / AGENT_VERSION to
+# a specific release, or leave them on latest.
+#
+# Where a registry is not reachable, add the commented `build:` line to compile
+# the image from this checkout instead.
+
 services:
   panel:
-    image: ${PANEL_IMAGE:-ghcr.io/uio-o/smart-gateway:latest}
+    image: ghcr.io/uio-o/smart-gateway/panel:${PANEL_VERSION:-latest}
+    # build:
+    #   context: .
+    #   target: panel
     container_name: smart-gateway-panel
     restart: unless-stopped
-    command: ["/usr/local/bin/smart-gateway-panel", "-addr", ":8090", "-data", "/data"]
+    command: ["-addr", ":8090", "-data", "/data"]
+    restart: unless-stopped
     environment:
       # The token guards the control API. A panel that can be reached without
       # it can reconfigure every agent, so it is required.
@@ -43,7 +55,10 @@ services:
   # It runs in managed mode: the panel owns the port mappings, so the container
   # only needs its identity and token.
   relay:
-    image: ${PANEL_IMAGE:-ghcr.io/uio-o/smart-gateway:latest}
+    image: ghcr.io/uio-o/smart-gateway/agent:${AGENT_VERSION:-latest}
+    # build:
+    #   context: .
+    #   target: agent
     container_name: smart-gateway-relay
     restart: unless-stopped
     profiles: ["local-relay"]
@@ -51,7 +66,6 @@ services:
       panel:
         condition: service_healthy
     command:
-      - /usr/local/bin/smart-gateway-agent
       - -panel
       - http://panel:8090
       - -node

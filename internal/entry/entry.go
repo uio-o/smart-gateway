@@ -77,9 +77,11 @@ func New(opts Options) (*Server, error) {
 		log:             opts.Logger,
 		fingerprintPeek: 512,
 	}
-	if cfg.Sticky.HoldMinutes <= 0 {
-		s.sessions = sticky.New(sticky.DefaultConfig())
-	}
+	// sticky.New fills in every unspecified field itself, so there is nothing to
+	// patch up here. Replacing the table with DefaultConfig when hold_minutes is
+	// unset used to switch affinity back ON for a config that asked for it to be
+	// off, and made the first configuration applied differ from the same
+	// configuration reloaded.
 	s.selector = route.NewSelector(s.tracker)
 	s.cfg.Store(cfg)
 

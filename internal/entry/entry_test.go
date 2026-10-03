@@ -299,6 +299,47 @@ func TestSessionAffinityKeepsSameRoute(t *testing.T) {
 	}
 }
 
+// TestDisabledAffinityStaysDisabledWhenHoldIsUnset guards a regression where a
+// config asking for affinity to be OFF got it switched back ON.
+//
+// The server used to replace the session table with sticky.DefaultConfig()
+// whenever hold_minutes was unset, and that default has Enabled: true. So
+// {"enabled": false, "hold_minutes": 0} produced a live session table, while
+// the very same document applied through Reload() produced a disabled one —
+// the configuration an operator sent was not the configuration in effect after
+// a restart, and only for the first load.
+func TestDisabledAffinityStaysDisabledWhenHoldIsUnset(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer upstream.Close()
+
+	cfg := entryConfig(upstream.URL)
+	cfg.Sticky = config.Sticky{Enabled: false, HoldMinutes: 0, FailThreshold: 0}
+
+	s := newTestServer(t, cfg)
+	if got := s.Sessions().Size(); got != 0 {
+		t.Fatalf("session table started with %d entries, want 0", got)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"x"}`))
+	req.RemoteAddr = "1.2.3.4:1234"
+	req.Header.Set("User-Agent", "cli/1.0")
+	s.ServeHTTP(httptest.NewRecorder(), req)
+
+	if got := s.Sessions().Size(); got != 0 {
+		t.Fatalf("affinity recorded %d sessions although it was disabled", got)
+	}
+
+	// Applying the very same document through Reload must agree with the start.
+	if err := s.Reload(cfg); err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if got := s.Sessions().Size(); got != 0 {
+		t.Fatalf("sessions after reload = %d, want 0", got)
+	}
+}
+
 func TestUpstreamFailureRecordedInStats(t *testing.T) {
 	// Point at a closed port so the forward fails.
 	cfg := entryConfig("http://127.0.0.1:1")

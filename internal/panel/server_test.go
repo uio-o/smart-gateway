@@ -236,6 +236,102 @@ func TestDownloadPrefersTheLocalAgentDirectory(t *testing.T) {
 	}
 }
 
+// TestDownloadServesAPinnedRelease guards the documented upgrade path.
+//
+// install.sh documents --release TAG and builds /download/<TAG>/<asset> from
+// it, and download.go documents the same form. The asset whitelist used to
+// reject any path containing a slash, so a pinned upgrade returned 404 while
+// the file name was still served correctly. That is the worst shape of bug:
+// the quick start works and only upgrades fail.
+func TestDownloadServesAPinnedRelease(t *testing.T) {
+	dir := t.TempDir()
+	name := "smart-gateway-agent-linux-amd64"
+	payload := []byte("#!/bin/true\n")
+	if err := os.MkdirAll(filepath.Join(dir, "v0.1.2-rc1"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "v0.1.2-rc1", name), payload, 0o755); err != nil {
+		t.Fatalf("write staged release: %v", err)
+	}
+
+	// Point the release origin at a dead endpoint so the test is hermetic:
+	// without it the panel would legitimately proxy GitHub and mask the check.
+	srv, _ := newTestPanel(t, Options{AgentDir: dir, ReleaseBase: "http://127.0.0.1:1/latest/download"})
+
+	w := do(t, srv, http.MethodGet, "/download/"+name, "", "")
+	if w.Code == http.StatusOK {
+		t.Fatal("the bare name resolved although only a staged tag exists")
+	}
+
+	w = do(t, srv, http.MethodGet, "/download/v0.1.2-rc1/"+name, "", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("pinned download = %d, want 200", w.Code)
+	}
+	if w.Body.String() != string(payload) {
+		t.Fatal("served bytes do not match the staged release")
+	}
+
+	// A tag that was never staged must not silently fall back to another
+	// version; the operator asked for a specific release.
+	w = do(t, srv, http.MethodGet, "/download/v9.9.9/"+name, "", "")
+	if w.Code == http.StatusOK {
+		t.Fatal("an unstaged tag was served from a different version")
+	}
+
+	// Traversal through the tag segment must stay rejected.
+	for _, p := range []string{
+		"/download/../../etc/passwd",
+		"/download/../" + name,
+		"/download/v0.1.2-rc1/../../etc/passwd",
+	} {
+		w = do(t, srv, http.MethodGet, p, "", "")
+		if w.Code == http.StatusOK {
+			t.Fatalf("traversal %q was served", p)
+		}
+	}
+
+	// A non-asset name must still be refused in both forms.
+	for _, p := range []string{"/download/other-file", "/download/v0.1.2-rc1/other-file"} {
+		w = do(t, srv, http.MethodGet, p, "", "")
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("%q = %d, want 404", p, w.Code)
+		}
+	}
+}
+
+// TestDownloadPinnedProxyURL checks the origin URL used for a pinned release.
+//
+// The default base points at releases/latest/download, so appending a tag would
+// request latest/download/<tag>/<asset>, which GitHub answers with 404. The
+// panel must rewrite the segment to releases/download/<tag>/.
+func TestDownloadPinnedProxyURL(t *testing.T) {
+	var got string
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.URL.Path
+		_, _ = w.Write([]byte("agent-bytes"))
+	}))
+	defer origin.Close()
+
+	srv, _ := newTestPanel(t, Options{ReleaseBase: origin.URL + "/releases/latest/download"})
+	name := "smart-gateway-agent-linux-amd64"
+
+	w := do(t, srv, http.MethodGet, "/download/v0.1.2-rc1/"+name, "", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("pinned proxy download = %d, want 200", w.Code)
+	}
+	if want := "/releases/download/v0.1.2-rc1/" + name; got != want {
+		t.Fatalf("origin path = %q, want %q", got, want)
+	}
+
+	w = do(t, srv, http.MethodGet, "/download/"+name, "", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("unpinned proxy download = %d, want 200", w.Code)
+	}
+	if want := "/releases/latest/download/" + name; got != want {
+		t.Fatalf("origin path = %q, want %q", got, want)
+	}
+}
+
 // TestAgentConfigLeavesListenToTheNode guards a regression where the panel
 // forced 127.0.0.1:8080 on every entry node, silently overriding the bind
 // address the operator configured on the machine itself.

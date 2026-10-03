@@ -22,24 +22,59 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Accepted forms:
+	// Accepted forms, mirroring install.sh --release:
 	//   /download/smart-gateway-agent-linux-amd64
-	//   /download/v0.1.0/smart-gateway-agent-linux-amd64
+	//   /download/<release>/smart-gateway-agent-linux-amd64
+	//
+	// The release segment is optional and may be any tag the operator pinned.
 	rel := strings.TrimPrefix(r.URL.Path, "/download/")
 	rel = path.Clean("/" + rel)
 	rel = strings.TrimPrefix(rel, "/")
-	if rel == "" || strings.HasPrefix(rel, ".") || !strings.HasPrefix(rel, "smart-gateway-") {
+	if rel == "" || strings.HasPrefix(rel, ".") {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	// Split an optional leading release tag from the asset file name. Only the
+	// base name is ever joined to a directory, so a tag cannot traverse out of
+	// agentDir, and a bare file name keeps working for the "latest" form.
+	release, name := "", rel
+	if i := strings.LastIndex(rel, "/"); i >= 0 {
+		release, name = rel[:i], rel[i+1:]
+	}
+	if !strings.HasPrefix(name, "smart-gateway-") || strings.Contains(release, "..") {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
 	// A local directory wins so a node can be provisioned without internet.
+	//
+	// A pinned release is served only from its own subdirectory. Falling back to
+	// the bare file name would silently hand out whatever version happens to be
+	// staged while the operator believes they pinned a specific tag.
 	if s.agentDir != "" {
-		local := filepath.Join(s.agentDir, filepath.Base(rel))
-		if _, err := os.Stat(local); err == nil {
-			w.Header().Set("Content-Type", "application/octet-stream")
-			http.ServeFile(w, r, local)
-			return
+		var candidates []string
+		if release != "" {
+			candidates = []string{filepath.Join(s.agentDir, release, name)}
+		} else {
+			candidates = []string{filepath.Join(s.agentDir, name)}
+		}
+		for _, local := range candidates {
+			// filepath.Join has already cleaned the path; verify the result is
+			// still inside agentDir before serving it.
+			root, err := filepath.Abs(s.agentDir)
+			if err != nil {
+				break
+			}
+			abs, err := filepath.Abs(local)
+			if err != nil || (abs != root && !strings.HasPrefix(abs, root+string(os.PathSeparator))) {
+				continue
+			}
+			if _, err := os.Stat(abs); err == nil {
+				w.Header().Set("Content-Type", "application/octet-stream")
+				http.ServeFile(w, r, abs)
+				return
+			}
 		}
 	}
 
@@ -48,7 +83,18 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url := fmt.Sprintf("%s/%s", strings.TrimSuffix(s.releaseBase, "/"), rel)
+	base := strings.TrimSuffix(s.releaseBase, "/")
+	url := base + "/" + name
+	if release != "" {
+		// A pinned release lives under releases/download/<tag>/, whereas the
+		// default base points at releases/latest/download. Rewrite that
+		// segment so a pinned request does not become latest/download/<tag>/.
+		if strings.HasSuffix(base, "/latest/download") {
+			url = strings.TrimSuffix(base, "/latest/download") + "/download/" + release + "/" + name
+		} else {
+			url = base + "/" + release + "/" + name
+		}
+	}
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, url, nil)
 	if err != nil {
 		http.Error(w, "bad release url", http.StatusInternalServerError)

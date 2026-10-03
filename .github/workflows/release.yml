@@ -1,0 +1,70 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "tag to build (for example v0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  # Build the agent for every architecture a node might run, plus the panel for
+  # operators who prefer a binary over a container.
+  binaries:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: true
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          set -eu
+          mkdir -p dist
+          ldflags="-s -w"
+          go build -trimpath -ldflags "$ldflags" \
+            -o "dist/smart-gateway-agent-${GOOS}-${GOARCH}" ./cmd/smart-gateway-agent
+          go build -trimpath -ldflags "$ldflags" \
+            -o "dist/smart-gateway-panel-${GOOS}-${GOARCH}" ./cmd/smart-gateway-panel
+          (cd dist && sha256sum smart-gateway-* > "checksums-${GOOS}-${GOARCH}.txt")
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+
+  # The panel proxies these assets so a node installer can fetch everything
+  # from a single origin.
+  publish:
+    needs: binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}

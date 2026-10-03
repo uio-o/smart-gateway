@@ -25,7 +25,6 @@ services:
     container_name: smart-gateway-panel
     restart: unless-stopped
     command: ["-addr", ":8090", "-data", "/data"]
-    restart: unless-stopped
     environment:
       # The token guards the control API. A panel that can be reached without
       # it can reconfigure every agent, so it is required.

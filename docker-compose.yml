@@ -48,8 +48,16 @@ services:
         max-size: "20m"
         max-file: "5"
 
-  # A relay node running on the same host. Remove this service when every relay
-  # lives on a separate machine.
+  # A relay node running on the same host. It starts only with
+  # `docker compose --profile local-relay up -d`, and is skipped by the default
+  # `docker compose up -d`.
+  #
+  # Compose interpolates every service in this file before it applies profiles,
+  # so the two variables below carry empty defaults. Without a default, the
+  # default profile would fail on two required values even though the service
+  # they belong to is not being started. A half-configured relay is still caught:
+  # the panel rejects an empty node name or token, and the relay exits with an
+  # error instead of running unmanaged.
   #
   # It runs in managed mode: the panel owns the port mappings, so the container
   # only needs its identity and token.
@@ -68,11 +76,11 @@ services:
       - -panel
       - http://panel:8090
       - -node
-      - ${RELAY_NODE_NAME:?set RELAY_NODE_NAME in .env}
+      - ${RELAY_NODE_NAME:-}
       - -role
       - relay
       - -panel-token
-      - ${RELAY_AGENT_TOKEN:?set RELAY_AGENT_TOKEN in .env}
+      - ${RELAY_AGENT_TOKEN:-}
     ports:
       # The relay port range must match the panel's configured range.
       - "${RELAY_PORT_START:-3001}-${RELAY_PORT_END:-3100}:${RELAY_PORT_START:-3001}-${RELAY_PORT_END:-3100}"

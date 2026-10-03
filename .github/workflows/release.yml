@@ -66,6 +66,44 @@ jobs:
           echo "prerelease=$prerelease"      >> "$GITHUB_OUTPUT"
           echo "plan: tag=$tag version=$version agent=$build_agent panel=$build_panel prerelease=$prerelease"
 
+  # The compose file is a release asset, so it is validated before anything is
+  # published. Compose interpolates every service before it applies profiles, so
+  # a variable that is required inside a profiled service still breaks the
+  # default `docker compose up`. This job reproduces the documented quick start
+  # and fails the release if the file that ships cannot actually start.
+  compose:
+    needs: plan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: The documented quick start must parse
+        run: |
+          set -eu
+          # Exactly what the README tells an operator to do, and nothing more:
+          # copy the example env and set the one required value.
+          cp .env.example .env
+          sed -i 's|^PANEL_ADMIN_TOKEN=.*|PANEL_ADMIN_TOKEN=ci-placeholder-token|' .env
+          docker compose config >/dev/null
+          echo "default profile parsed with only PANEL_ADMIN_TOKEN set"
+
+      - name: The default profile starts only the panel
+        run: |
+          set -eu
+          services="$(docker compose config --services | sort | tr '\n' ' ')"
+          echo "services: $services"
+          test "$services" = "panel " || {
+            echo "default profile must resolve to the panel alone, got: $services" >&2
+            exit 1
+          }
+
+      - name: The local-relay profile still resolves
+        run: |
+          set -eu
+          RELAY_NODE_NAME=ci-relay RELAY_AGENT_TOKEN=ci-token \
+            docker compose --profile local-relay config >/dev/null
+          echo "local-relay profile parsed with its variables supplied"
+
   # Everything is built in one job per architecture so the two binaries always
   # come from the same commit and toolchain.
   binaries:
@@ -140,7 +178,7 @@ jobs:
   # The panel proxies these assets so a node installer can fetch everything
   # from a single origin.
   publish:
-    needs: [plan, binaries, extras]
+    needs: [plan, compose, binaries, extras]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -160,7 +198,7 @@ jobs:
   # no extra credential is needed. The agent and panel are separate images so a
   # node can pull only what it runs.
   image:
-    needs: [plan, binaries]
+    needs: [plan, compose, binaries]
     runs-on: ubuntu-latest
     permissions:
       contents: read
